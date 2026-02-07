@@ -15,6 +15,8 @@ import {
   resolveStorePath,
   saveSessionStore,
 } from "./config/sessions.js";
+import { BrowserActions } from "./core/browser-actions.js";
+import { BrowserClient } from "./core/browser-kernel.js";
 import { ensureBinary } from "./infra/binaries.js";
 import { loadDotEnv } from "./infra/dotenv.js";
 import { normalizeEnv } from "./infra/env.js";
@@ -70,6 +72,8 @@ export {
   saveSessionStore,
   toWhatsappJid,
   waitForever,
+  BrowserActions,
+  BrowserClient,
 };
 
 const isMain = isMainModule({
