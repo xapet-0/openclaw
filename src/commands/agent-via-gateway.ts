@@ -181,12 +181,18 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
   };
+
+  // --- MERGED LOGIC START ---
+  // If specific browser flags are set, force browserMode on.
   if (opts.browserCdpUrl || opts.browserUrlRegex) {
     localOpts.browserMode = true;
   }
+  // If browserMode is on, force local execution (browser bridge is local-only).
   if (localOpts.browserMode === true) {
     localOpts.local = true;
   }
+  // --- MERGED LOGIC END ---
+
   if (localOpts.local === true) {
     return await agentCommand(localOpts, runtime, deps);
   }
