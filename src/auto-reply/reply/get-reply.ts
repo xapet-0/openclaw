@@ -7,9 +7,13 @@ import {
   resolveAgentSkillsFilter,
 } from "../../agents/agent-scope.js";
 import { resolveModelRefFromString } from "../../agents/model-selection.js";
+import { buildModelAliasIndex } from "../../agents/model-selection.js";
+import { registerBrowserUniversalProvider } from "../../agents/providers/browser-universal.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../../agents/workspace.js";
+import { hasFlag } from "../../cli/argv.js";
 import { type OpenClawConfig, loadConfig } from "../../config/config.js";
+import { isTruthyEnvValue } from "../../infra/env.js";
 import { applyLinkUnderstanding } from "../../link-understanding/apply.js";
 import { applyMediaUnderstanding } from "../../media-understanding/apply.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -50,6 +54,14 @@ function mergeSkillFilters(channelFilter?: string[], agentFilter?: string[]): st
   return channel.filter((name) => agentSet.has(name));
 }
 
+function resolveBrowserMode(opts?: GetReplyOptions): boolean {
+  return (
+    opts?.browserMode === true ||
+    isTruthyEnvValue(process.env.OPENCLAW_BROWSER_MODE) ||
+    hasFlag(process.argv, "--browser-mode")
+  );
+}
+
 export async function getReplyFromConfig(
   ctx: MsgContext,
   opts?: GetReplyOptions,
@@ -72,12 +84,21 @@ export async function getReplyFromConfig(
     mergedSkillFilter !== undefined ? { ...opts, skillFilter: mergedSkillFilter } : opts;
   const agentCfg = cfg.agents?.defaults;
   const sessionCfg = cfg.session;
-  const { defaultProvider, defaultModel, aliasIndex } = resolveDefaultModel({
+  let { defaultProvider, defaultModel, aliasIndex } = resolveDefaultModel({
     cfg,
     agentId,
   });
   let provider = defaultProvider;
   let model = defaultModel;
+  const browserMode = resolveBrowserMode(resolvedOpts);
+  if (browserMode) {
+    registerBrowserUniversalProvider();
+    defaultProvider = "browser-universal";
+    defaultModel = "default";
+    aliasIndex = buildModelAliasIndex({ cfg, defaultProvider });
+    provider = defaultProvider;
+    model = defaultModel;
+  }
   if (opts?.isHeartbeat) {
     const heartbeatRaw = agentCfg?.heartbeat?.model?.trim() ?? "";
     const heartbeatRef = heartbeatRaw

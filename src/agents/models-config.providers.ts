@@ -80,6 +80,18 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const BROWSER_UNIVERSAL_BASE_URL = "browser://universal";
+const BROWSER_UNIVERSAL_DEFAULT_MODEL_ID = "default";
+const BROWSER_UNIVERSAL_DEFAULT_CONTEXT_WINDOW = 128000;
+const BROWSER_UNIVERSAL_DEFAULT_MAX_TOKENS = 8192;
+const BROWSER_UNIVERSAL_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+const BROWSER_UNIVERSAL_API_KEY = "browser-universal";
+
 interface OllamaModel {
   name: string;
   modified_at: string;
@@ -255,6 +267,11 @@ export function normalizeProviders(params: {
       }
     }
 
+    if (hasModels && normalizedKey === "browser-universal" && !normalizedProvider.apiKey?.trim()) {
+      mutated = true;
+      normalizedProvider = { ...normalizedProvider, apiKey: BROWSER_UNIVERSAL_API_KEY };
+    }
+
     if (normalizedKey === "google") {
       const googleNormalized = normalizeGoogleProvider(normalizedProvider);
       if (googleNormalized !== normalizedProvider) {
@@ -403,6 +420,24 @@ async function buildOllamaProvider(): Promise<ProviderConfig> {
   };
 }
 
+function buildBrowserUniversalProvider(): ProviderConfig {
+  return {
+    baseUrl: BROWSER_UNIVERSAL_BASE_URL,
+    api: "browser-universal",
+    models: [
+      {
+        id: BROWSER_UNIVERSAL_DEFAULT_MODEL_ID,
+        name: "Browser Universal",
+        reasoning: false,
+        input: ["text"],
+        cost: BROWSER_UNIVERSAL_DEFAULT_COST,
+        contextWindow: BROWSER_UNIVERSAL_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: BROWSER_UNIVERSAL_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
 }): Promise<ModelsConfig["providers"]> {
@@ -497,6 +532,12 @@ export async function resolveImplicitProviders(params: {
   if (ollamaKey) {
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
   }
+
+  providers["browser-universal"] = {
+    ...buildBrowserUniversalProvider(),
+    apiKey: BROWSER_UNIVERSAL_API_KEY,
+    auth: "token",
+  };
 
   return providers;
 }

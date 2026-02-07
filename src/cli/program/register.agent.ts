@@ -45,6 +45,19 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
       "--timeout <seconds>",
       "Override agent command timeout (seconds, default 600 or config value)",
     )
+    .option(
+      "--browser-mode",
+      "Use the universal browser provider (connects to a running Chrome via CDP)",
+      false,
+    )
+    .option(
+      "--browser-cdp-url <url>",
+      "Override CDP endpoint for the universal browser provider (default: auto-discover)",
+    )
+    .option(
+      "--browser-url-regex <pattern>",
+      "Regex used to select a browser tab (default: matches chatgpt.com/claude.ai/gemini.google.com)",
+    )
     .addHelpText(
       "after",
       () =>
