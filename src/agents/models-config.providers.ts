@@ -267,6 +267,11 @@ export function normalizeProviders(params: {
       }
     }
 
+    if (hasModels && normalizedKey === "browser-universal" && !normalizedProvider.apiKey?.trim()) {
+      mutated = true;
+      normalizedProvider = { ...normalizedProvider, apiKey: BROWSER_UNIVERSAL_API_KEY };
+    }
+
     if (normalizedKey === "google") {
       const googleNormalized = normalizeGoogleProvider(normalizedProvider);
       if (googleNormalized !== normalizedProvider) {

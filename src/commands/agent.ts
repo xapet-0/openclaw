@@ -96,6 +96,12 @@ export async function agentCommand(
   }
   const agentCfg = cfg.agents?.defaults;
   const browserMode = opts.browserMode === true;
+  if (opts.browserCdpUrl?.trim()) {
+    process.env.OPENCLAW_BROWSER_UNIVERSAL_CDP_URL = opts.browserCdpUrl.trim();
+  }
+  if (opts.browserUrlRegex?.trim()) {
+    process.env.OPENCLAW_BROWSER_UNIVERSAL_URL_REGEX = opts.browserUrlRegex.trim();
+  }
   const sessionAgentId = agentIdOverride ?? resolveAgentIdFromSessionKey(opts.sessionKey?.trim());
   const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, sessionAgentId);
   const agentDir = resolveAgentDir(cfg, sessionAgentId);

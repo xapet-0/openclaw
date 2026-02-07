@@ -76,4 +76,11 @@ export type AgentCommandOpts = {
   streamParams?: AgentStreamParams;
   /** Force the universal browser provider instead of API-backed models. */
   browserMode?: boolean;
+codex/perform-system-architecture-audit-zxxos2
+  /** Override CDP endpoint for the universal browser provider. */
+  browserCdpUrl?: string;
+  /** Override tab selection regex for the universal browser provider. */
+  browserUrlRegex?: string;
+=======
+ main
 };

@@ -9,7 +9,13 @@ import type {
 import { chromium } from "playwright-core";
 import { formatErrorMessage } from "../infra/errors.js";
 import { getHeadersWithAuth } from "./cdp.helpers.js";
-import { getChromeWebSocketUrl } from "./chrome.js";
+import {
+  getChromeWebSocketUrl,
+  isChromeCdpReady,
+  isChromeReachable,
+  launchOpenClawChrome,
+} from "./chrome.js";
+import { resolveBrowserConfig, resolveProfile } from "./config.js";
 
 export type BrowserConsoleMessage = {
   type: string;
@@ -101,12 +107,65 @@ const MAX_NETWORK_REQUESTS = 500;
 let cached: ConnectedBrowser | null = null;
 let connecting: Promise<ConnectedBrowser> | null = null;
 
+const DEFAULT_CDP_SCAN_PORTS = [9222, 9223, 9224, 9225];
+
 function normalizeCdpUrl(raw: string) {
   return raw.replace(/\/$/, "");
 }
 
 function roleRefsKey(cdpUrl: string, targetId: string) {
   return `${normalizeCdpUrl(cdpUrl)}::${targetId}`;
+}
+
+function buildLoopbackCdpUrl(port: number): string {
+  return `http://127.0.0.1:${port}`;
+}
+
+async function discoverLocalCdpUrl(preferred?: string): Promise<string> {
+  const candidates: string[] = [];
+  const normalizedPreferred = preferred?.trim();
+  if (normalizedPreferred) {
+    candidates.push(normalizeCdpUrl(normalizedPreferred));
+  }
+
+  for (const port of DEFAULT_CDP_SCAN_PORTS) {
+    candidates.push(buildLoopbackCdpUrl(port));
+  }
+
+  try {
+    const resolved = resolveBrowserConfig(undefined);
+    const profile = resolveProfile(resolved, resolved.defaultProfile);
+    if (profile?.cdpPort) {
+      candidates.push(buildLoopbackCdpUrl(profile.cdpPort));
+    }
+  } catch {
+    // Ignore profile resolution failures; fall back to the default scan list.
+  }
+
+  const unique = Array.from(new Set(candidates));
+  for (const candidate of unique) {
+    if (await isChromeReachable(candidate, 800)) {
+      return normalizeCdpUrl(candidate);
+    }
+  }
+
+  const resolved = resolveBrowserConfig(undefined);
+  if (resolved.attachOnly) {
+    throw new Error(
+      "No reachable Chrome CDP endpoint found and browser.attachOnly=true prevents launch.",
+    );
+  }
+  const profile = resolveProfile(resolved, resolved.defaultProfile);
+  if (!profile) {
+    throw new Error("No browser profile available to launch OpenClaw Chrome.");
+  }
+  const launched = await launchOpenClawChrome(resolved, profile);
+  const launchedUrl = buildLoopbackCdpUrl(launched.cdpPort);
+  const ready = await isChromeCdpReady(launchedUrl, 1500, 3000);
+  if (!ready) {
+    throw new Error("Launched Chrome, but CDP endpoint did not become ready.");
+  }
+  return normalizeCdpUrl(launchedUrl);
 }
 
 export function rememberRoleRefsForTarget(opts: {
@@ -316,7 +375,8 @@ function observeBrowser(browser: Browser) {
 }
 
 async function connectBrowser(cdpUrl: string): Promise<ConnectedBrowser> {
-  const normalized = normalizeCdpUrl(cdpUrl);
+  const resolvedUrl = await discoverLocalCdpUrl(cdpUrl);
+  const normalized = normalizeCdpUrl(resolvedUrl);
   if (cached?.cdpUrl === normalized) {
     return cached;
   }
