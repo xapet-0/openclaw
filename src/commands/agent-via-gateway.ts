@@ -181,12 +181,14 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
   };
+
   if (opts.browserCdpUrl || opts.browserUrlRegex) {
     localOpts.browserMode = true;
   }
   if (localOpts.browserMode === true) {
     localOpts.local = true;
   }
+
   if (localOpts.local === true) {
     return await agentCommand(localOpts, runtime, deps);
   }
