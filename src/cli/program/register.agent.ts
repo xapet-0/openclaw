@@ -36,7 +36,7 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
     .option("--reply-account <id>", "Delivery account id override")
     .option(
       "--local",
-      "Run the embedded agent locally (requires model provider API keys in your shell)",
+      "Run the embedded agent locally (requires model provider API keys unless using --browser-mode)",
       false,
     )
     .option("--deliver", "Send the agent's reply back to the selected channel", false)
@@ -44,6 +44,19 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
     .option(
       "--timeout <seconds>",
       "Override agent command timeout (seconds, default 600 or config value)",
+    )
+    .option(
+      "--browser-mode",
+      "Use the universal browser provider (connects to a running Chrome via CDP)",
+      false,
+    )
+    .option(
+      "--browser-cdp-url <url>",
+      "Override CDP endpoint for the universal browser provider (default: auto-discover)",
+    )
+    .option(
+      "--browser-url-regex <pattern>",
+      "Regex used to select a browser tab (default: matches chatgpt.com/claude.ai/gemini.google.com)",
     )
     .addHelpText(
       "after",

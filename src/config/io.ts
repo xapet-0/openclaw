@@ -90,6 +90,39 @@ function coerceConfig(value: unknown): OpenClawConfig {
   return value as OpenClawConfig;
 }
 
+function buildZeroConfigDefaults(): OpenClawConfig {
+  return {
+    agents: {
+      defaults: {
+        model: {
+          primary: "browser-universal/default",
+        },
+      },
+    },
+    models: {
+      providers: {
+        "browser-universal": {
+          api: "browser-universal",
+          baseUrl: "browser://universal",
+          auth: "token",
+          apiKey: "browser-universal",
+          models: [
+            {
+              id: "default",
+              name: "Browser Universal",
+              reasoning: false,
+              input: ["text"],
+            },
+          ],
+        },
+      },
+    },
+    browser: {
+      enabled: true,
+    },
+  };
+}
+
 async function rotateConfigBackups(configPath: string, ioFs: typeof fs.promises): Promise<void> {
   if (CONFIG_BACKUP_COUNT <= 1) {
     return;
@@ -210,18 +243,37 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     candidatePaths.find((candidate) => deps.fs.existsSync(candidate)) ?? requestedConfigPath;
 
   function loadConfig(): OpenClawConfig {
+    const finalizeConfig = (cfg: OpenClawConfig): OpenClawConfig => {
+      const next = applyModelDefaults(
+        applyCompactionDefaults(
+          applyContextPruningDefaults(
+            applyAgentDefaults(
+              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(cfg))),
+            ),
+          ),
+        ),
+      );
+      normalizeConfigPaths(next);
+      applyConfigEnv(next, deps.env);
+
+      const enabled =
+        shouldEnableShellEnvFallback(deps.env) || next.env?.shellEnv?.enabled === true;
+      if (enabled && !shouldDeferShellEnvFallback(deps.env)) {
+        loadShellEnvFallback({
+          enabled: true,
+          env: deps.env,
+          expectedKeys: SHELL_ENV_EXPECTED_KEYS,
+          logger: deps.logger,
+          timeoutMs: next.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
+        });
+      }
+
+      return applyConfigOverrides(next);
+    };
+
     try {
       if (!deps.fs.existsSync(configPath)) {
-        if (shouldEnableShellEnvFallback(deps.env) && !shouldDeferShellEnvFallback(deps.env)) {
-          loadShellEnvFallback({
-            enabled: true,
-            env: deps.env,
-            expectedKeys: SHELL_ENV_EXPECTED_KEYS,
-            logger: deps.logger,
-            timeoutMs: resolveShellEnvFallbackTimeoutMs(deps.env),
-          });
-        }
-        return {};
+        return finalizeConfig(buildZeroConfigDefaults());
       }
       const raw = deps.fs.readFileSync(configPath, "utf-8");
       const parsed = deps.json5.parse(raw);
@@ -273,16 +325,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         deps.logger.warn(`Config warnings:\\n${details}`);
       }
       warnIfConfigFromFuture(validated.config, deps.logger);
-      const cfg = applyModelDefaults(
-        applyCompactionDefaults(
-          applyContextPruningDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
-            ),
-          ),
-        ),
-      );
-      normalizeConfigPaths(cfg);
+      const cfg = finalizeConfig(validated.config);
 
       const duplicates = findDuplicateAgentDirs(cfg, {
         env: deps.env,
@@ -292,20 +335,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         throw new DuplicateAgentDirError(duplicates);
       }
 
-      applyConfigEnv(cfg, deps.env);
-
-      const enabled = shouldEnableShellEnvFallback(deps.env) || cfg.env?.shellEnv?.enabled === true;
-      if (enabled && !shouldDeferShellEnvFallback(deps.env)) {
-        loadShellEnvFallback({
-          enabled: true,
-          env: deps.env,
-          expectedKeys: SHELL_ENV_EXPECTED_KEYS,
-          logger: deps.logger,
-          timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
-        });
-      }
-
-      return applyConfigOverrides(cfg);
+      return cfg;
     } catch (err) {
       if (err instanceof DuplicateAgentDirError) {
         deps.logger.error(err.message);
@@ -313,10 +343,10 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       const error = err as { code?: string };
       if (error?.code === "INVALID_CONFIG") {
-        return {};
+        return finalizeConfig(buildZeroConfigDefaults());
       }
       deps.logger.error(`Failed to read config at ${configPath}`, err);
-      return {};
+      return finalizeConfig(buildZeroConfigDefaults());
     }
   }
 
