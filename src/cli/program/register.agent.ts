@@ -45,6 +45,11 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
       "--timeout <seconds>",
       "Override agent command timeout (seconds, default 600 or config value)",
     )
+    .option(
+      "--browser-mode",
+      "Use the universal browser provider (connects to a running Chrome via CDP)",
+      false,
+    )
     .addHelpText(
       "after",
       () =>
