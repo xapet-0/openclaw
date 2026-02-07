@@ -138,7 +138,9 @@ export async function resolveApiKeyForProvider(params: {
   agentDir?: string;
 }): Promise<ResolvedProviderAuth> {
   const { provider, cfg, profileId, preferredProfile } = params;
-  const normalizedProvider = normalizeProviderId(provider);
+
+  const normalizedProvider = normalizeProviderId(provider.split("/")[0] ?? provider);
+
   if (normalizedProvider === "browser-universal") {
     return {
       apiKey: "local-browser",
