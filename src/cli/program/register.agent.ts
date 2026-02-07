@@ -36,7 +36,7 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
     .option("--reply-account <id>", "Delivery account id override")
     .option(
       "--local",
-      "Run the embedded agent locally (requires model provider API keys in your shell)",
+      "Run the embedded agent locally (requires model provider API keys unless using --browser-mode)",
       false,
     )
     .option("--deliver", "Send the agent's reply back to the selected channel", false)
