@@ -39,6 +39,8 @@ export type GetReplyOptions = {
   skillFilter?: string[];
   /** Mutable ref to track if a reply was sent (for Slack "first" threading mode). */
   hasRepliedRef?: { value: boolean };
+  /** Force the universal browser provider instead of API-backed models. */
+  browserMode?: boolean;
 };
 
 export type ReplyPayload = {
