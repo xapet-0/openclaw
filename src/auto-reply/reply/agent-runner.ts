@@ -6,6 +6,10 @@ import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { TypingController } from "./typing.js";
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
+import {
+  persistKnowledgeGraphTurn,
+  resolveKnowledgeGraphConfig,
+} from "../../agents/knowledge-graph/sqlite.js";
 import { resolveModelAuthMode } from "../../agents/model-auth.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { queueEmbeddedPiMessage } from "../../agents/pi-embedded.js";
@@ -43,6 +47,13 @@ import { persistSessionUsageUpdate } from "./session-usage.js";
 import { createTypingSignaler } from "./typing-mode.js";
 
 const BLOCK_REPLY_SEND_TIMEOUT_MS = 15_000;
+
+function extractReplyText(payloads: ReplyPayload[]): string {
+  return payloads
+    .map((payload) => payload.text?.trim())
+    .filter((text): text is string => Boolean(text))
+    .join("\n\n");
+}
 
 export async function runReplyAgent(params: {
   commandBody: string;
@@ -423,6 +434,39 @@ export async function runReplyAgent(params: {
 
     if (replyPayloads.length === 0) {
       return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
+    }
+
+    const knowledgeGraphConfig = resolveKnowledgeGraphConfig();
+    if (knowledgeGraphConfig.enabled) {
+      const responseText = extractReplyText(replyPayloads);
+      if (responseText) {
+        try {
+          await persistKnowledgeGraphTurn(knowledgeGraphConfig, {
+            sessionId: followupRun.run.sessionId,
+            sessionKey,
+            provider: providerUsed,
+            model: modelUsed,
+            prompt: commandBody,
+            response: responseText,
+            metadata: {
+              channel: replyToChannel,
+              messageId: sessionCtx.MessageSidFull ?? sessionCtx.MessageSid,
+              threadId: sessionCtx.MessageThreadId,
+              accountId: sessionCtx.AccountId,
+              senderId: sessionCtx.SenderId,
+              senderName: sessionCtx.SenderName,
+              senderUsername: sessionCtx.SenderUsername,
+              workspaceDir: followupRun.run.workspaceDir,
+            },
+          });
+        } catch (error) {
+          defaultRuntime.log(
+            `[knowledge-graph] Failed to persist turn: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
     }
 
     await signalTypingIfNeeded(replyPayloads, typingSignals);

@@ -138,6 +138,14 @@ export async function resolveApiKeyForProvider(params: {
   agentDir?: string;
 }): Promise<ResolvedProviderAuth> {
   const { provider, cfg, profileId, preferredProfile } = params;
+  const normalizedProvider = normalizeProviderId(provider.split("/")[0] ?? provider);
+  if (normalizedProvider === "browser-universal") {
+    return {
+      apiKey: "local-browser",
+      source: "local browser",
+      mode: "token",
+    };
+  }
   const store = params.store ?? ensureAuthProfileStore(params.agentDir);
 
   if (profileId) {

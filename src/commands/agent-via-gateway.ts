@@ -50,6 +50,9 @@ export type AgentCliOpts = {
   runId?: string;
   extraSystemPrompt?: string;
   local?: boolean;
+  browserMode?: boolean;
+  browserCdpUrl?: string;
+  browserUrlRegex?: string;
 };
 
 function parseTimeoutSeconds(opts: { cfg: ReturnType<typeof loadConfig>; timeout?: string }) {
@@ -178,7 +181,13 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
   };
-  if (opts.local === true) {
+  if (opts.browserCdpUrl || opts.browserUrlRegex) {
+    localOpts.browserMode = true;
+  }
+  if (localOpts.browserMode === true) {
+    localOpts.local = true;
+  }
+  if (localOpts.local === true) {
     return await agentCommand(localOpts, runtime, deps);
   }
 

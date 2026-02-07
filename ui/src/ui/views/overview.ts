@@ -239,6 +239,114 @@ export function renderOverview(props: OverviewProps) {
     </section>
 
     <section class="card" style="margin-top: 18px;">
+      <div class="card-title">Browser Bridge</div>
+      <div class="card-sub">
+        Control how OpenClaw routes prompts through your active browser tab.
+      </div>
+      <div class="form-grid" style="margin-top: 16px;">
+        <label class="field">
+          <span>Enable Browser Bridge</span>
+          <div class="row" style="margin-top: 8px;">
+            <label class="cfg-toggle">
+              <input
+                type="checkbox"
+                .checked=${props.settings.browserMode}
+                @change=${(e: Event) => {
+                  const checked = (e.target as HTMLInputElement).checked;
+                  props.onSettingsChange({ ...props.settings, browserMode: checked });
+                }}
+              />
+              <span class="cfg-toggle__track"></span>
+            </label>
+            <span class="muted">Route prompts through the focused LLM tab.</span>
+          </div>
+        </label>
+        <label class="field">
+          <span>Auto-detect LLM tab</span>
+          <div class="row" style="margin-top: 8px;">
+            <label class="cfg-toggle">
+              <input
+                type="checkbox"
+                .checked=${props.settings.browserAutoDetect}
+                @change=${(e: Event) => {
+                  const checked = (e.target as HTMLInputElement).checked;
+                  props.onSettingsChange({ ...props.settings, browserAutoDetect: checked });
+                }}
+              />
+              <span class="cfg-toggle__track"></span>
+            </label>
+            <span class="muted">Match the active tab by URL or DOM hints.</span>
+          </div>
+        </label>
+        <label class="field">
+          <span>Auto-launch Chrome</span>
+          <div class="row" style="margin-top: 8px;">
+            <label class="cfg-toggle">
+              <input
+                type="checkbox"
+                .checked=${props.settings.browserAutoLaunch}
+                @change=${(e: Event) => {
+                  const checked = (e.target as HTMLInputElement).checked;
+                  props.onSettingsChange({ ...props.settings, browserAutoLaunch: checked });
+                }}
+              />
+              <span class="cfg-toggle__track"></span>
+            </label>
+            <span class="muted">Start Chrome with CDP if no endpoint is running.</span>
+          </div>
+        </label>
+        <label class="field">
+          <span>Notify on detection</span>
+          <div class="row" style="margin-top: 8px;">
+            <label class="cfg-toggle">
+              <input
+                type="checkbox"
+                .checked=${props.settings.browserNotifyOnDetect}
+                @change=${(e: Event) => {
+                  const checked = (e.target as HTMLInputElement).checked;
+                  props.onSettingsChange({ ...props.settings, browserNotifyOnDetect: checked });
+                }}
+              />
+              <span class="cfg-toggle__track"></span>
+            </label>
+            <span class="muted">Show a banner when a compatible tab is found.</span>
+          </div>
+        </label>
+      </div>
+      <div class="form-grid" style="margin-top: 16px;">
+        <label class="field">
+          <span>CDP URL (optional)</span>
+          <input
+            .value=${props.settings.browserCdpUrl}
+            @input=${(e: Event) => {
+              const v = (e.target as HTMLInputElement).value;
+              props.onSettingsChange({ ...props.settings, browserCdpUrl: v });
+            }}
+            placeholder="http://127.0.0.1:9222"
+          />
+        </label>
+        <label class="field">
+          <span>Target URL regex</span>
+          <input
+            .value=${props.settings.browserUrlRegex}
+            @input=${(e: Event) => {
+              const v = (e.target as HTMLInputElement).value;
+              props.onSettingsChange({ ...props.settings, browserUrlRegex: v });
+            }}
+            placeholder="chatgpt\\.com|claude\\.ai|gemini\\.google\\.com"
+          />
+        </label>
+      </div>
+      <div class="callout" style="margin-top: 14px;">
+        Use these values when launching the CLI:
+        <div class="mono" style="margin-top: 6px;">
+          OPENCLAW_BROWSER_UNIVERSAL_CDP_URL=${props.settings.browserCdpUrl || "<auto>"}<br />
+          OPENCLAW_BROWSER_UNIVERSAL_URL_REGEX=${props.settings.browserUrlRegex || "<auto>"}
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
       <div class="card-title">Notes</div>
       <div class="card-sub">Quick reminders for remote control setups.</div>
       <div class="note-grid" style="margin-top: 14px;">
