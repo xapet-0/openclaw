@@ -18,40 +18,129 @@ type BrowserUniversalOptions = {
 };
 
 const DEFAULT_CDP_URL = "http://127.0.0.1:9222";
-const DEFAULT_URL_REGEX = /chatgpt\.com/i;
+const DEFAULT_URL_REGEX = /chatgpt\.com|chat\.openai\.com|claude\.ai|gemini\.google\.com/i;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-const INPUT_SELECTORS = [
-  "#prompt-textarea",
-  'textarea[placeholder*="Message"]',
-  'textarea[placeholder*="Send"]',
-  "textarea",
-  'div[contenteditable="true"][role="textbox"]',
-  'div[role="textbox"][contenteditable="true"]',
-  '[contenteditable="true"]',
+type PlatformId = "chatgpt" | "claude" | "gemini" | "unknown";
+
+type SelectorStrategy = {
+  input: string[];
+  stop: string[];
+  send: string[];
+  assistant: string[];
+  modelLabel: string[];
+  domHints: string[];
+};
+
+const BASE_SELECTORS: SelectorStrategy = {
+  input: [
+    "#prompt-textarea",
+    'textarea[placeholder*="Message"]',
+    'textarea[placeholder*="Send"]',
+    "textarea",
+    'div[contenteditable="true"][role="textbox"]',
+    'div[role="textbox"][contenteditable="true"]',
+    '[contenteditable="true"]',
+  ],
+  stop: [
+    'button[aria-label*="Stop"]',
+    'button[title*="Stop"]',
+    'button:has(svg[aria-label*="Stop"])',
+    'button:has(svg[data-icon*="stop"])',
+    'button:has(svg[data-testid*="stop"])',
+  ],
+  send: [
+    'button[aria-label*="Send"]',
+    'button[title*="Send"]',
+    'button[data-testid*="send"]',
+    'button:has(svg[aria-label*="Send"])',
+    'button:has(svg[data-icon*="send"])',
+  ],
+  assistant: ['[data-message-author-role="assistant"]', ".markdown", ".prose", "article"],
+  modelLabel: [
+    'button[data-testid*="model"]',
+    'button[aria-haspopup="listbox"]',
+    '[data-testid*="model"]',
+    'div[role="button"][aria-haspopup="listbox"]',
+  ],
+  domHints: [],
+};
+
+type PlatformProfile = {
+  id: PlatformId;
+  urlHints: RegExp[];
+  selectors: Partial<SelectorStrategy>;
+};
+
+const PLATFORM_PROFILES: PlatformProfile[] = [
+  {
+    id: "chatgpt",
+    urlHints: [/chatgpt\.com/i, /chat\.openai\.com/i],
+    selectors: {
+      input: [
+        "textarea#prompt-textarea",
+        'div[contenteditable="true"][data-testid="prompt-textarea"]',
+      ],
+      assistant: ['[data-message-author-role="assistant"]', ".markdown", ".prose"],
+      stop: ['button[aria-label*="Stop"]', 'button[data-testid*="stop"]'],
+      send: ['button[aria-label*="Send"]', 'button[data-testid*="send"]'],
+      modelLabel: [
+        'button[data-testid="model-switcher"]',
+        'button[aria-label*="Model"]',
+        'button[aria-haspopup="listbox"]',
+      ],
+      domHints: ['[data-message-author-role="assistant"]', "#prompt-textarea"],
+    },
+  },
+  {
+    id: "claude",
+    urlHints: [/claude\.ai/i],
+    selectors: {
+      input: ['div[contenteditable="true"][role="textbox"]', "textarea"],
+      assistant: ['div[data-testid="chat-messages"]', ".prose", "article"],
+      stop: ['button[aria-label*="Stop"]', 'button:has(svg[data-icon*="stop"])'],
+      send: ['button[aria-label*="Send"]', 'button[type="submit"]'],
+      modelLabel: [
+        'button[data-testid*="model"]',
+        'button[aria-label*="Model"]',
+        'div[role="button"][aria-haspopup="listbox"]',
+      ],
+      domHints: ['[data-testid="chat-messages"]', 'button[aria-label*="Model"]'],
+    },
+  },
+  {
+    id: "gemini",
+    urlHints: [/gemini\.google\.com/i, /bard\.google\.com/i],
+    selectors: {
+      input: ['textarea[aria-label*="Enter a prompt"]', 'textarea[placeholder*="Enter"]'],
+      assistant: ["response-container", ".markdown", ".prose", "article"],
+      stop: ['button[aria-label*="Stop"]', 'button:has(svg[data-icon*="stop"])'],
+      send: ['button[aria-label*="Send"]', 'button[aria-label*="Submit"]', 'button[type="submit"]'],
+      modelLabel: [
+        'button[aria-label*="Model"]',
+        'button[aria-haspopup="listbox"]',
+        '[data-test-id*="model"]',
+      ],
+      domHints: ['body:has([data-test-id*="gemini"])', 'div[aria-label*="Gemini"]'],
+    },
+  },
 ];
 
-const STOP_SELECTORS = [
-  'button[aria-label*="Stop"]',
-  'button[title*="Stop"]',
-  'button:has(svg[aria-label*="Stop"])',
-  'button:has(svg[data-icon*="stop"])',
-];
+const INPUT_SELECTORS = BASE_SELECTORS.input;
 
-const SEND_SELECTORS = [
-  'button[aria-label*="Send"]',
-  'button[title*="Send"]',
-  'button[data-testid*="send"]',
-  'button:has(svg[aria-label*="Send"])',
-  'button:has(svg[data-icon*="send"])',
-];
+const STOP_SELECTORS = BASE_SELECTORS.stop;
 
-const ASSISTANT_SELECTORS = [
-  '[data-message-author-role="assistant"]',
-  ".markdown",
-  ".prose",
-  "article",
-];
+const SEND_SELECTORS = BASE_SELECTORS.send;
+
+const ASSISTANT_SELECTORS = BASE_SELECTORS.assistant;
+
+const MODEL_LABEL_SELECTORS = BASE_SELECTORS.modelLabel;
+
+const UNKNOWN_PROFILE: PlatformProfile = {
+  id: "unknown",
+  urlHints: [],
+  selectors: {},
+};
 
 let browserUniversalRegistered = false;
 
@@ -76,14 +165,16 @@ function throwIfAborted(signal?: AbortSignal): void {
 function buildAssistantMessage(
   text: string,
   model: Model<string>,
+  detectedModel?: string,
   stopReason: AssistantMessage["stopReason"] = "stop",
 ): AssistantMessage {
+  const resolvedModel = detectedModel?.trim() || model.id;
   return {
     role: "assistant",
     content: [{ type: "text", text }],
     api: model.api,
     provider: model.provider,
-    model: model.id,
+    model: resolvedModel,
     usage: {
       input: 0,
       output: 0,
@@ -154,8 +245,30 @@ async function resolvePageByRegex(pages: Page[], regex: RegExp): Promise<Page | 
   return null;
 }
 
-async function resolveInputLocator(page: Page): Promise<ReturnType<Page["locator"]>> {
-  for (const selector of INPUT_SELECTORS) {
+function mergeSelectors(base: string[], specific?: string[]): string[] {
+  if (!specific || specific.length === 0) {
+    return base;
+  }
+  const combined = [...specific, ...base];
+  return Array.from(new Set(combined));
+}
+
+function resolveSelectorStrategy(profile: PlatformProfile): SelectorStrategy {
+  return {
+    input: mergeSelectors(INPUT_SELECTORS, profile.selectors.input),
+    stop: mergeSelectors(STOP_SELECTORS, profile.selectors.stop),
+    send: mergeSelectors(SEND_SELECTORS, profile.selectors.send),
+    assistant: mergeSelectors(ASSISTANT_SELECTORS, profile.selectors.assistant),
+    modelLabel: mergeSelectors(MODEL_LABEL_SELECTORS, profile.selectors.modelLabel),
+    domHints: mergeSelectors(BASE_SELECTORS.domHints, profile.selectors.domHints),
+  };
+}
+
+async function resolveInputLocator(
+  page: Page,
+  selectors: string[],
+): Promise<ReturnType<Page["locator"]>> {
+  for (const selector of selectors) {
     const locator = page.locator(selector).first();
     try {
       if (await locator.isVisible()) {
@@ -168,7 +281,7 @@ async function resolveInputLocator(page: Page): Promise<ReturnType<Page["locator
   throw new Error("Browser universal input not found. Update selectors or focus the input.");
 }
 
-async function countAssistantBlocks(page: Page): Promise<number> {
+async function countAssistantBlocks(page: Page, selectors: string[]): Promise<number> {
   return await page.evaluate((selectors) => {
     for (const selector of selectors) {
       const matches = Array.from(document.querySelectorAll(selector));
@@ -177,10 +290,15 @@ async function countAssistantBlocks(page: Page): Promise<number> {
       }
     }
     return 0;
-  }, ASSISTANT_SELECTORS);
+  }, selectors);
 }
 
-async function waitForCompletion(page: Page, timeoutMs: number): Promise<void> {
+async function waitForCompletion(
+  page: Page,
+  timeoutMs: number,
+  stopSelectors: string[],
+  sendSelectors: string[],
+): Promise<void> {
   await page.waitForFunction(
     (stopSelectors, sendSelectors) => {
       const isVisible = (selector: string) => {
@@ -199,13 +317,13 @@ async function waitForCompletion(page: Page, timeoutMs: number): Promise<void> {
       const sendKnown = sendSelectors.some((selector) => document.querySelector(selector));
       return !stopVisible && (sendVisible || !sendKnown);
     },
-    STOP_SELECTORS,
-    SEND_SELECTORS,
+    stopSelectors,
+    sendSelectors,
     { timeout: timeoutMs },
   );
 }
 
-async function extractLatestAssistantText(page: Page): Promise<string> {
+async function extractLatestAssistantText(page: Page, selectors: string[]): Promise<string> {
   return await page.evaluate((selectors) => {
     for (const selector of selectors) {
       const matches = Array.from(document.querySelectorAll(selector));
@@ -217,7 +335,58 @@ async function extractLatestAssistantText(page: Page): Promise<string> {
       }
     }
     return "";
-  }, ASSISTANT_SELECTORS);
+  }, selectors);
+}
+
+async function resolveModelLabel(page: Page, selectors: string[]): Promise<string | undefined> {
+  return await page.evaluate((selectors) => {
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      const text = el?.textContent?.trim();
+      if (text) {
+        return text;
+      }
+    }
+    return undefined;
+  }, selectors);
+}
+
+async function matchesDomHints(page: Page, selectors: string[]): Promise<boolean> {
+  if (selectors.length === 0) {
+    return false;
+  }
+  return await page.evaluate((selectors) => {
+    return selectors.some((selector) => document.querySelector(selector));
+  }, selectors);
+}
+
+async function detectPlatform(page: Page, urlRegex: RegExp): Promise<PlatformProfile> {
+  const url = page.url();
+  const title = await page.title().catch(() => "");
+  const candidates = PLATFORM_PROFILES.filter((profile) =>
+    profile.urlHints.some((hint) => hint.test(url) || hint.test(title)),
+  );
+  for (const profile of candidates) {
+    const hints = profile.selectors.domHints ?? [];
+    if (await matchesDomHints(page, hints)) {
+      return profile;
+    }
+  }
+  for (const profile of PLATFORM_PROFILES) {
+    const hints = profile.selectors.domHints ?? [];
+    if (await matchesDomHints(page, hints)) {
+      return profile;
+    }
+  }
+  if (urlRegex.test(url)) {
+    const matched = PLATFORM_PROFILES.find((profile) =>
+      profile.urlHints.some((hint) => hint.test(url)),
+    );
+    if (matched) {
+      return matched;
+    }
+  }
+  return UNKNOWN_PROFILE;
 }
 
 export class BrowserUniversalProvider implements ApiProvider<"browser-universal", StreamOptions> {
@@ -259,7 +428,12 @@ export class BrowserUniversalProvider implements ApiProvider<"browser-universal"
   ): Promise<void> {
     const prompt = extractLatestUserPrompt(context);
     if (!prompt) {
-      const error = buildAssistantMessage("Browser universal: empty prompt.", model, "error");
+      const error = buildAssistantMessage(
+        "Browser universal: empty prompt.",
+        model,
+        undefined,
+        "error",
+      );
       stream.push({ type: "error", reason: "error", error });
       stream.end(error);
       return;
@@ -281,8 +455,12 @@ export class BrowserUniversalProvider implements ApiProvider<"browser-universal"
           throw new Error("Unable to select an active tab for browser universal provider.");
         }
 
-        const initialCount = await countAssistantBlocks(page);
-        const input = await resolveInputLocator(page);
+        const profile = await detectPlatform(page, this.urlRegex);
+        const strategy = resolveSelectorStrategy(profile);
+        const modelLabel = await resolveModelLabel(page, strategy.modelLabel);
+
+        const initialCount = await countAssistantBlocks(page, strategy.assistant);
+        const input = await resolveInputLocator(page, strategy.input);
         await input.click({ timeout: timeoutMs });
         const isTextArea = await input.evaluate((node) => node instanceof HTMLTextAreaElement);
         if (isTextArea) {
@@ -303,18 +481,18 @@ export class BrowserUniversalProvider implements ApiProvider<"browser-universal"
             }
             return false;
           },
-          ASSISTANT_SELECTORS,
+          strategy.assistant,
           initialCount,
           { timeout: timeoutMs },
         );
 
-        await waitForCompletion(page, timeoutMs);
-        const responseText = await extractLatestAssistantText(page);
+        await waitForCompletion(page, timeoutMs, strategy.stop, strategy.send);
+        const responseText = await extractLatestAssistantText(page, strategy.assistant);
         if (!responseText) {
           throw new Error("Browser universal: no assistant response found.");
         }
 
-        const message = buildAssistantMessage(responseText, model);
+        const message = buildAssistantMessage(responseText, model, modelLabel);
         stream.push({ type: "start", partial: message });
         stream.push({ type: "text_start", contentIndex: 0, partial: message });
         stream.push({
@@ -336,7 +514,12 @@ export class BrowserUniversalProvider implements ApiProvider<"browser-universal"
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const error = buildAssistantMessage(`Browser universal error: ${message}`, model, "error");
+      const error = buildAssistantMessage(
+        `Browser universal error: ${message}`,
+        model,
+        undefined,
+        "error",
+      );
       stream.push({ type: "error", reason: "error", error });
       stream.end(error);
     }

@@ -54,6 +54,14 @@ function mergeSkillFilters(channelFilter?: string[], agentFilter?: string[]): st
   return channel.filter((name) => agentSet.has(name));
 }
 
+function resolveBrowserMode(opts?: GetReplyOptions): boolean {
+  return (
+    opts?.browserMode === true ||
+    isTruthyEnvValue(process.env.OPENCLAW_BROWSER_MODE) ||
+    hasFlag(process.argv, "--browser-mode")
+  );
+}
+
 export async function getReplyFromConfig(
   ctx: MsgContext,
   opts?: GetReplyOptions,
@@ -82,10 +90,7 @@ export async function getReplyFromConfig(
   });
   let provider = defaultProvider;
   let model = defaultModel;
-  const browserMode =
-    resolvedOpts?.browserMode === true ||
-    isTruthyEnvValue(process.env.OPENCLAW_BROWSER_MODE) ||
-    hasFlag(process.argv, "--browser-mode");
+  const browserMode = resolveBrowserMode(resolvedOpts);
   if (browserMode) {
     registerBrowserUniversalProvider();
     defaultProvider = "browser-universal";
