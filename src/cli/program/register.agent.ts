@@ -50,6 +50,7 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
       "Use the universal browser provider (connects to a running Chrome via CDP)",
       false,
     )
+ codex/perform-system-architecture-audit-zxxos2
     .option(
       "--browser-cdp-url <url>",
       "Override CDP endpoint for the universal browser provider (default: auto-discover)",
@@ -58,6 +59,8 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
       "--browser-url-regex <pattern>",
       "Regex used to select a browser tab (default: matches chatgpt.com/claude.ai/gemini.google.com)",
     )
+=======
+main
     .addHelpText(
       "after",
       () =>

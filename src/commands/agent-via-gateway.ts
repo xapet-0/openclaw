@@ -51,8 +51,11 @@ export type AgentCliOpts = {
   extraSystemPrompt?: string;
   local?: boolean;
   browserMode?: boolean;
+codex/perform-system-architecture-audit-zxxos2
   browserCdpUrl?: string;
   browserUrlRegex?: string;
+=======
+ main
 };
 
 function parseTimeoutSeconds(opts: { cfg: ReturnType<typeof loadConfig>; timeout?: string }) {
@@ -181,10 +184,14 @@ export async function agentCliCommand(opts: AgentCliOpts, runtime: RuntimeEnv, d
     agentId: opts.agent,
     replyAccountId: opts.replyAccount,
   };
+ codex/perform-system-architecture-audit-zxxos2
   if (opts.browserCdpUrl || opts.browserUrlRegex) {
     localOpts.browserMode = true;
   }
   if (localOpts.browserMode === true) {
+=======
+  if (opts.browserMode === true) {
+main
     localOpts.local = true;
   }
   if (localOpts.local === true) {
