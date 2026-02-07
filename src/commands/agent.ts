@@ -22,6 +22,7 @@ import {
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import { registerBrowserUniversalProvider } from "../agents/providers/browser-universal.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../agents/skills/refresh.js";
 import { resolveAgentTimeoutMs } from "../agents/timeout.js";
@@ -94,6 +95,7 @@ export async function agentCommand(
     }
   }
   const agentCfg = cfg.agents?.defaults;
+  const browserMode = opts.browserMode === true;
   const sessionAgentId = agentIdOverride ?? resolveAgentIdFromSessionKey(opts.sessionKey?.trim());
   const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, sessionAgentId);
   const agentDir = resolveAgentDir(cfg, sessionAgentId);
@@ -102,11 +104,16 @@ export async function agentCommand(
     ensureBootstrapFiles: !agentCfg?.skipBootstrap,
   });
   const workspaceDir = workspace.dir;
-  const configuredModel = resolveConfiguredModelRef({
-    cfg,
-    defaultProvider: DEFAULT_PROVIDER,
-    defaultModel: DEFAULT_MODEL,
-  });
+  const configuredModel = browserMode
+    ? { provider: "browser-universal", model: "default" }
+    : resolveConfiguredModelRef({
+        cfg,
+        defaultProvider: DEFAULT_PROVIDER,
+        defaultModel: DEFAULT_MODEL,
+      });
+  if (browserMode) {
+    registerBrowserUniversalProvider();
+  }
   const thinkingLevelsHint = formatThinkingLevels(configuredModel.provider, configuredModel.model);
 
   const thinkOverride = normalizeThinkLevel(opts.thinking);
@@ -254,11 +261,14 @@ export async function agentCommand(
         }
       : cfg;
 
-    const { provider: defaultProvider, model: defaultModel } = resolveConfiguredModelRef({
-      cfg: cfgForModelSelection,
-      defaultProvider: DEFAULT_PROVIDER,
-      defaultModel: DEFAULT_MODEL,
-    });
+    const resolvedDefaults = browserMode
+      ? { provider: "browser-universal", model: "default" }
+      : resolveConfiguredModelRef({
+          cfg: cfgForModelSelection,
+          defaultProvider: DEFAULT_PROVIDER,
+          defaultModel: DEFAULT_MODEL,
+        });
+    const { provider: defaultProvider, model: defaultModel } = resolvedDefaults;
     let provider = defaultProvider;
     let model = defaultModel;
     const hasAllowlist = agentCfg?.models && Object.keys(agentCfg.models).length > 0;

@@ -74,4 +74,6 @@ export type AgentCommandOpts = {
   extraSystemPrompt?: string;
   /** Per-call stream param overrides (best-effort). */
   streamParams?: AgentStreamParams;
+  /** Force the universal browser provider instead of API-backed models. */
+  browserMode?: boolean;
 };
